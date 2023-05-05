@@ -2,6 +2,8 @@
 #!/bin/bash
 
 SCRIPT_PREFIX="kitchen"
+POOL_VOL=${SCRIPT_PREFIX}"-pool"
+STORAGE_PATH="/data/lxd/"${SCRIPT_PREFIX}
 # Get the list of running containers
 containers=$(lxc list -c ns --format=json | jq -r '.[] | .name')
 
@@ -37,11 +39,19 @@ for network in $networks; do
     fi
 done
 
+if  [ -d ${STORAGE_PATH} ]; then
+    sudo rm -rf ${STORAGE_PATH}
+fi
 # Get the list of storage pools
 pools=$(lxc storage list --format=json | jq -r '.[] | .name')
 # Loop through the profiles and delete them
 for pool in $pools; do
     if echo "$pool" | grep -q "${SCRIPT_PREFIX}"; then
+        if lxc storage list --format=json | jq -c "map(.name | select(\"${POOL_VOL}\"))" | grep -q "${SCRIPT_PREFIX}"; then
+            echo "deleting btfs ${POOL_VOL}" 
+            lxd sql global "DELETE FROM storage_volumes WHERE name='${POOL_VOL}'"
+        fi
+
         echo "deleting pool: $pool"
         lxc storage delete "$pool"
     fi
